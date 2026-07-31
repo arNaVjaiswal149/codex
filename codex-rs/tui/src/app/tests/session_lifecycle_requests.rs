@@ -406,6 +406,10 @@ async fn older_pagination_reconciles_review_prompts_across_page_boundaries() -> 
         started.turns.iter().flat_map(|turn| turn.items.clone()),
         crate::thread_transcript::RawReasoningVisibility::Hidden,
         Some(app.config.codex_home.as_path()),
+        app.config
+            .features
+            .get()
+            .enabled(codex_features::Feature::LatexRendering),
     );
     app.enqueue_primary_thread_session(started.session, started.turns)
         .await?;
@@ -575,6 +579,10 @@ async fn transcript_home_loads_every_older_history_page() -> Result<()> {
         started.turns.iter().flat_map(|turn| turn.items.clone()),
         crate::thread_transcript::RawReasoningVisibility::Hidden,
         Some(app.config.codex_home.as_path()),
+        app.config
+            .features
+            .get()
+            .enabled(codex_features::Feature::LatexRendering),
     );
     app.enqueue_primary_thread_session(started.session, started.turns)
         .await?;
@@ -881,6 +889,10 @@ async fn underfilled_scrollback_fetches_older_pages_without_opening_the_transcri
         started.turns.iter().flat_map(|turn| turn.items.clone()),
         crate::thread_transcript::RawReasoningVisibility::Hidden,
         Some(app.config.codex_home.as_path()),
+        app.config
+            .features
+            .get()
+            .enabled(codex_features::Feature::LatexRendering),
     );
     initial_cells.insert(
         /*index*/ 0,

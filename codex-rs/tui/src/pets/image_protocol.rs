@@ -251,6 +251,37 @@ pub fn kitty_transmit_png_with_id(
     Ok(wrap_for_tmux_if_needed(&command))
 }
 
+pub(crate) fn kitty_transmit_png_virtual_with_id(
+    path: &Path,
+    columns: u16,
+    rows: u16,
+    image_id: u32,
+) -> Result<String> {
+    let png = fs::read(path).with_context(|| format!("read {}", path.display()))?;
+    let payload = general_purpose::STANDARD.encode(png);
+    let chunks = payload
+        .as_bytes()
+        .chunks(KITTY_CHUNK_SIZE)
+        .collect::<Vec<_>>();
+
+    let mut command = String::new();
+    for (index, chunk) in chunks.iter().enumerate() {
+        let chunk = std::str::from_utf8(chunk).context("base64 payload is not valid UTF-8")?;
+        let more_flag = u8::from(index + 1 < chunks.len());
+        if index == 0 {
+            command.push_str(&format!(
+                "{ESC}_Ga=t,t=d,f=100,i={image_id},q=2,m={more_flag};{chunk}{ST}",
+            ));
+        } else {
+            command.push_str(&format!("{ESC}_Gm={more_flag};{chunk}{ST}"));
+        }
+    }
+    command.push_str(&format!(
+        "{ESC}_Ga=p,U=1,i={image_id},c={columns},r={rows},q=2;{ST}"
+    ));
+    Ok(wrap_for_tmux_if_needed(&command))
+}
+
 pub fn kitty_transmit_png_file_with_id(
     path: &Path,
     columns: u16,
@@ -356,6 +387,24 @@ mod tests {
         assert!(command.starts_with("\x1b_Ga=T,t=d,f=100,c=4,r=3,q=2,m=0;"));
         assert!(command.contains("cG5n"));
         assert!(command.ends_with("\x1b\\"));
+    }
+
+    #[test]
+    #[serial]
+    fn kitty_virtual_png_transmission_creates_unicode_placement() {
+        let _guard = EnvVarGuard::new("TMUX", /*value*/ None);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("formula.png");
+        fs::write(&path, b"png").unwrap();
+
+        let command = kitty_transmit_png_virtual_with_id(
+            &path, /*columns*/ 4, /*rows*/ 3, /*image_id*/ 42,
+        )
+        .unwrap();
+
+        assert!(command.starts_with("\x1b_Ga=t,t=d,f=100,i=42,q=2,m=0;"));
+        assert!(command.contains("cG5n"));
+        assert!(command.ends_with("\x1b_Ga=p,U=1,i=42,c=4,r=3,q=2;\x1b\\"));
     }
 
     #[test]

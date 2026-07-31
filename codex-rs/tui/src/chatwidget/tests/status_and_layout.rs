@@ -353,6 +353,88 @@ async fn flush_answer_stream_keeps_default_reflow_for_plain_text_tail() {
 }
 
 #[tokio::test]
+async fn flush_answer_stream_requests_scrollback_reflow_for_display_math() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config
+        .features
+        .enable(Feature::LatexRendering)
+        .expect("enable LaTeX rendering");
+    let cwd = chat.config.cwd.to_path_buf();
+
+    let mut controller = crate::streaming::controller::StreamController::new(
+        Some(80),
+        cwd.as_path(),
+        HistoryRenderMode::Rich,
+    );
+    assert!(controller.push("$$\\int_0^1 x^2\\,dx$$\n"));
+    assert!(
+        !controller.has_live_tail(),
+        "closed display math should exercise finalized-source reflow, not live-tail reflow",
+    );
+    chat.stream_controller = Some(controller);
+
+    while rx.try_recv().is_ok() {}
+
+    chat.flush_answer_stream_with_separator();
+
+    let mut reflow = None;
+    while let Ok(event) = rx.try_recv() {
+        if let AppEvent::ConsolidateAgentMessage {
+            scrollback_reflow, ..
+        } = event
+        {
+            reflow = Some(scrollback_reflow);
+        }
+    }
+
+    assert_eq!(
+        reflow,
+        Some(crate::app_event::ConsolidationScrollbackReflow::Required),
+    );
+}
+
+#[tokio::test]
+async fn flush_answer_stream_requests_scrollback_reflow_for_inline_math() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config
+        .features
+        .enable(Feature::LatexRendering)
+        .expect("enable LaTeX rendering");
+    let cwd = chat.config.cwd.to_path_buf();
+
+    let mut controller = crate::streaming::controller::StreamController::new(
+        Some(80),
+        cwd.as_path(),
+        HistoryRenderMode::Rich,
+    );
+    assert!(controller.push("Energy is $E=mc^2$.\n"));
+    assert!(
+        !controller.has_live_tail(),
+        "closed inline math should exercise finalized-source reflow",
+    );
+    chat.stream_controller = Some(controller);
+
+    while rx.try_recv().is_ok() {}
+
+    chat.flush_answer_stream_with_separator();
+
+    let mut reflow = None;
+    while let Ok(event) = rx.try_recv() {
+        if let AppEvent::ConsolidateAgentMessage {
+            scrollback_reflow, ..
+        } = event
+        {
+            reflow = Some(scrollback_reflow);
+        }
+    }
+
+    assert_eq!(
+        reflow,
+        Some(crate::app_event::ConsolidationScrollbackReflow::Required),
+    );
+}
+
+#[tokio::test]
 async fn flush_answer_stream_requests_scrollback_reflow_for_live_table_tail() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     let cwd = chat.config.cwd.to_path_buf();
