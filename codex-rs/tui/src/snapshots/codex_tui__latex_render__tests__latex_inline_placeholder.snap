@@ -1,0 +1,15 @@
+---
+source: tui/src/latex_render_tests.rs
+assertion_line: 262
+expression: lines
+---
+[
+    HyperlinkLine {
+        line: Line::from_iter([
+            Span::from("before ").bold(),
+            Span::from("\u{10eeee}\u{305}\u{10eeee}\u{10eeee}").fg(Color::Rgb(18, 52, 86)).italic(),
+            Span::from(" after").underlined(),
+        ]),
+        hyperlinks: [],
+    },
+]
