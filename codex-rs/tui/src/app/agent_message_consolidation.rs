@@ -10,6 +10,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use codex_features::Feature;
 use color_eyre::eyre::Result;
 
 use super::App;
@@ -54,13 +55,13 @@ impl App {
             tracing::debug!(
                 "ConsolidateAgentMessage: replacing cells [{start}..{end}] with AgentMarkdownCell"
             );
-            let consolidated: Arc<dyn HistoryCell> = Arc::new(
-                history_cell::AgentMarkdownCell::new_with_inline_visualizations(
+            let consolidated: Arc<dyn HistoryCell> =
+                Arc::new(history_cell::AgentMarkdownCell::new_with_rendering(
                     source,
                     &cwd,
                     inline_visualization_context,
-                ),
-            );
+                    self.config.features.enabled(Feature::LatexRendering),
+                ));
             self.transcript_cells
                 .splice(start..end, std::iter::once(consolidated.clone()));
 
