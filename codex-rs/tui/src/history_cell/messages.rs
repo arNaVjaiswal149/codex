@@ -370,6 +370,7 @@ pub(crate) struct AgentMarkdownCell {
     markdown_source: String,
     cwd: PathBuf,
     inline_visualization_context: Option<crate::inline_visualization::InlineVisualizationContext>,
+    latex_rendering_feature_enabled: bool,
     rendered_lines: Option<MarkdownRenderCache>,
 }
 
@@ -388,12 +389,29 @@ impl AgentMarkdownCell {
         )
     }
 
+    #[cfg(test)]
     pub(crate) fn new_with_inline_visualizations(
         markdown_source: String,
         cwd: &Path,
         inline_visualization_context: Option<
             crate::inline_visualization::InlineVisualizationContext,
         >,
+    ) -> Self {
+        Self::new_with_rendering(
+            markdown_source,
+            cwd,
+            inline_visualization_context,
+            /*latex_rendering_feature_enabled*/ false,
+        )
+    }
+
+    pub(crate) fn new_with_rendering(
+        markdown_source: String,
+        cwd: &Path,
+        inline_visualization_context: Option<
+            crate::inline_visualization::InlineVisualizationContext,
+        >,
+        latex_rendering_feature_enabled: bool,
     ) -> Self {
         let rendered_lines = (!markdown_source
             .contains(crate::inline_visualization::DIRECTIVE_PREFIX))
@@ -402,6 +420,7 @@ impl AgentMarkdownCell {
             markdown_source,
             cwd: cwd.to_path_buf(),
             inline_visualization_context,
+            latex_rendering_feature_enabled,
             rendered_lines,
         }
     }
@@ -441,11 +460,18 @@ impl HistoryCell for AgentMarkdownCell {
 
             // Re-render markdown from source at the current width. Reserve 2 columns for the "• " /
             // " " prefix prepended below.
-            let lines = crate::markdown::render_markdown_agent_with_links_cwd_and_visualizations(
+            let lines = crate::latex_render::render_markdown_with_latex(
                 &self.markdown_source,
                 Some(wrap_width),
-                Some(self.cwd.as_path()),
-                self.inline_visualization_context.as_ref(),
+                self.latex_rendering_feature_enabled,
+                |source| {
+                    crate::markdown::render_markdown_agent_with_links_cwd_and_visualizations(
+                        source,
+                        Some(wrap_width),
+                        Some(self.cwd.as_path()),
+                        self.inline_visualization_context.as_ref(),
+                    )
+                },
             );
             normalize_whitespace_only_hyperlink_lines(prefix_hyperlink_lines(
                 lines,

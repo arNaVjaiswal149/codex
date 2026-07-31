@@ -16,6 +16,8 @@ use crate::multi_agents::sub_agent_activity_summary;
 use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::UserInput;
+use codex_features::Feature;
+use codex_features::Features;
 use codex_protocol::ThreadId;
 use codex_protocol::items::UserMessageItem;
 use codex_utils_absolute_path::AbsolutePathBuf;
@@ -35,6 +37,7 @@ pub(crate) async fn load_session_transcript(
     thread_id: ThreadId,
     raw_reasoning_visibility: RawReasoningVisibility,
     codex_home: Option<&std::path::Path>,
+    features: &Features,
 ) -> std::io::Result<TranscriptCells> {
     let mut thread = app_server
         .thread_read(thread_id, /*include_turns*/ false)
@@ -54,6 +57,7 @@ pub(crate) async fn load_session_transcript(
         thread,
         raw_reasoning_visibility,
         codex_home,
+        features,
     ))
 }
 
@@ -61,6 +65,7 @@ pub(crate) fn thread_to_transcript_cells(
     thread: Thread,
     raw_reasoning_visibility: RawReasoningVisibility,
     codex_home: Option<&std::path::Path>,
+    features: &Features,
 ) -> TranscriptCells {
     let cwd = thread.cwd;
     let thread_id = ThreadId::from_string(&thread.id).ok();
@@ -70,6 +75,7 @@ pub(crate) fn thread_to_transcript_cells(
         thread.turns.into_iter().flat_map(|turn| turn.items),
         raw_reasoning_visibility,
         codex_home,
+        features.enabled(Feature::LatexRendering),
     );
     if cells.is_empty() {
         cells.push(Arc::new(PlainHistoryCell::new(vec![
@@ -85,6 +91,7 @@ pub(crate) fn thread_items_to_transcript_cells(
     items: impl IntoIterator<Item = ThreadItem>,
     raw_reasoning_visibility: RawReasoningVisibility,
     codex_home: Option<&std::path::Path>,
+    latex_rendering_enabled: bool,
 ) -> TranscriptCells {
     let inline_visualization_context = codex_home.and_then(|codex_home| {
         thread_id.and_then(|thread_id| InlineVisualizationContext::new(codex_home, thread_id))
@@ -126,10 +133,11 @@ pub(crate) fn thread_items_to_transcript_cells(
             ThreadItem::AgentMessage { text, .. } => {
                 let parsed = parse_assistant_markdown(&text, cwd.as_path());
                 if !parsed.visible_markdown.trim().is_empty() {
-                    cells.push(Arc::new(AgentMarkdownCell::new_with_inline_visualizations(
+                    cells.push(Arc::new(AgentMarkdownCell::new_with_rendering(
                         parsed.visible_markdown,
                         cwd.as_path(),
                         inline_visualization_context.clone(),
+                        latex_rendering_enabled,
                     )));
                 }
             }

@@ -905,6 +905,7 @@ impl Tui {
             return Ok(());
         }
 
+        crate::latex_render::flush_pending_uploads(terminal.backend_mut())?;
         for batch in pending_history_lines.iter() {
             let mode = if is_zellij && batch.wrap_policy == HistoryLineWrapPolicy::Terminal {
                 InsertHistoryMode::ZellijRaw

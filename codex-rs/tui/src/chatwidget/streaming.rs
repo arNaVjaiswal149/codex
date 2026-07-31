@@ -36,11 +36,22 @@ impl ChatWidget {
                 // Stream finalization supplies one trailing newline when the last delta omitted it.
                 streamed != completed && streamed.strip_suffix('\n') != Some(completed)
             });
-            let scrollback_reflow = if had_live_tail || completed_message_differs {
-                crate::app_event::ConsolidationScrollbackReflow::Required
-            } else {
-                crate::app_event::ConsolidationScrollbackReflow::IfResizeReflowRan
-            };
+            let source = completed_message.map(str::to_owned).or_else(|| {
+                streamed_source.map(|source| {
+                    parse_assistant_markdown(&source, self.config.cwd.as_path()).visible_markdown
+                })
+            });
+            let contains_latex_math = crate::latex_render::latex_rendering_requested(
+                self.config.features.enabled(Feature::LatexRendering),
+            ) && source
+                .as_deref()
+                .is_some_and(crate::latex_render::contains_latex_math);
+            let scrollback_reflow =
+                if had_live_tail || completed_message_differs || contains_latex_math {
+                    crate::app_event::ConsolidationScrollbackReflow::Required
+                } else {
+                    crate::app_event::ConsolidationScrollbackReflow::IfResizeReflowRan
+                };
             // Match newline-committed streaming behavior: once assistant output is ready to be
             // committed into history, hide the inline status row so transcript content replaces it.
             if cell.is_some() {
@@ -57,11 +68,6 @@ impl ChatWidget {
                 };
             // Consolidate the run of streaming AgentMessageCells into a single AgentMarkdownCell
             // that can re-render from source on resize.
-            let source = completed_message.map(str::to_owned).or_else(|| {
-                streamed_source.map(|source| {
-                    parse_assistant_markdown(&source, self.config.cwd.as_path()).visible_markdown
-                })
-            });
             if let Some(source) = source {
                 let inline_visualization_context = self.thread_id.and_then(|thread_id| {
                     crate::inline_visualization::InlineVisualizationContext::from_config(
