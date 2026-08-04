@@ -18,7 +18,9 @@ use sha2::Digest;
 use sha2::Sha256;
 
 use super::DIACRITICS;
+use super::placeholder_lines;
 use super::queue_upload;
+use crate::terminal_hyperlinks::HyperlinkLine;
 
 const CACHE_VERSION: &str = "v7";
 const RENDER_TIMEOUT: Duration = Duration::from_secs(8);
@@ -119,6 +121,79 @@ pub(super) fn render_formula(
             }])
         }
     }
+}
+
+pub(crate) fn render_cached_display_png(
+    path: &Path,
+    cache_key: &str,
+    available_columns: usize,
+    display_width_scale_halves: u32,
+) -> Result<Vec<HyperlinkLine>> {
+    let (cell_width_px, cell_height_px) = terminal_cell_pixels();
+    render_cached_display_png_with_metrics(
+        path,
+        cache_key,
+        available_columns,
+        cell_width_px,
+        cell_height_px,
+        display_width_scale_halves,
+    )
+}
+
+pub(crate) fn render_cached_display_png_with_metrics(
+    path: &Path,
+    cache_key: &str,
+    available_columns: usize,
+    cell_width_px: u16,
+    cell_height_px: u16,
+    display_width_scale_halves: u32,
+) -> Result<Vec<HyperlinkLine>> {
+    let image = image::open(path)
+        .with_context(|| format!("read terminal image {}", path.display()))?
+        .to_rgba8();
+    let available_width_px = u32::try_from(available_columns)
+        .unwrap_or(u32::MAX)
+        .saturating_mul(u32::from(cell_width_px));
+    let intrinsic_columns = div_ceil_u32(
+        image.width(),
+        u32::from(DEFAULT_CELL_WIDTH_PX).saturating_mul(crate::mermaid_runtime::RENDER_SCALE),
+    );
+    let display_width_scale_halves = if image.height().saturating_mul(2) >= image.width() {
+        display_width_scale_halves.max(2)
+    } else {
+        2
+    };
+    let target_width_px = available_width_px
+        .min(
+            intrinsic_columns
+                .saturating_mul(u32::from(cell_width_px))
+                .saturating_mul(display_width_scale_halves)
+                .div_ceil(2),
+        )
+        .min(image.width());
+    let image = if target_width_px > 0 && image.width() > target_width_px {
+        let height = (u64::from(image.height()) * u64::from(target_width_px))
+            .div_ceil(u64::from(image.width()))
+            .max(1) as u32;
+        image::imageops::resize(&image, target_width_px, height, FilterType::Lanczos3)
+    } else {
+        image
+    };
+    let tile_key = format!(
+        "{cache_key}-display-fit-v6-s{display_width_scale_halves}-cw{cell_width_px}-ch{cell_height_px}"
+    );
+    let rendered = tile_display_formula(
+        &image,
+        path,
+        &tile_key,
+        available_columns,
+        cell_width_px,
+        cell_height_px,
+    )?;
+    Ok(rendered
+        .iter()
+        .flat_map(placeholder_lines)
+        .collect::<Vec<_>>())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -404,7 +479,7 @@ fn latex_cache_dir() -> Result<PathBuf> {
         .to_path_buf())
 }
 
-fn terminal_cell_pixels() -> (u16, u16) {
+pub(crate) fn terminal_cell_pixels() -> (u16, u16) {
     crossterm::terminal::window_size()
         .ok()
         .and_then(|size| {

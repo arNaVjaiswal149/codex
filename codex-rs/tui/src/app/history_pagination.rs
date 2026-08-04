@@ -127,10 +127,7 @@ impl App {
                 user_items.iter().map(|(_, item)| item.clone()),
                 visibility,
                 Some(self.config.codex_home.as_path()),
-                self.config
-                    .features
-                    .get()
-                    .enabled(codex_features::Feature::LatexRendering),
+                self.config.features.get(),
             );
             let mut persisted_user_cells = user_items
                 .into_iter()
@@ -209,10 +206,7 @@ impl App {
             items,
             visibility,
             Some(self.config.codex_home.as_path()),
-            self.config
-                .features
-                .get()
-                .enabled(codex_features::Feature::LatexRendering),
+            self.config.features.get(),
         );
         if self.backtrack.overlay_preview_active {
             self.backtrack.nth_user_message = self.backtrack.nth_user_message.saturating_add(

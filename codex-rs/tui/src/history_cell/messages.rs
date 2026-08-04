@@ -2,6 +2,23 @@
 
 use super::markdown_render_cache::MarkdownRenderCache;
 use super::*;
+use codex_features::Feature;
+use codex_features::Features;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct AgentMarkdownRenderFeatures {
+    latex: bool,
+    mermaid: bool,
+}
+
+impl AgentMarkdownRenderFeatures {
+    pub(crate) fn from_features(features: &Features) -> Self {
+        Self {
+            latex: features.enabled(Feature::LatexRendering),
+            mermaid: features.enabled(Feature::MermaidRendering),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub(crate) struct UserHistoryCell {
@@ -370,7 +387,7 @@ pub(crate) struct AgentMarkdownCell {
     markdown_source: String,
     cwd: PathBuf,
     inline_visualization_context: Option<crate::inline_visualization::InlineVisualizationContext>,
-    latex_rendering_feature_enabled: bool,
+    render_features: AgentMarkdownRenderFeatures,
     rendered_lines: Option<MarkdownRenderCache>,
 }
 
@@ -401,7 +418,7 @@ impl AgentMarkdownCell {
             markdown_source,
             cwd,
             inline_visualization_context,
-            /*latex_rendering_feature_enabled*/ false,
+            AgentMarkdownRenderFeatures::default(),
         )
     }
 
@@ -411,7 +428,7 @@ impl AgentMarkdownCell {
         inline_visualization_context: Option<
             crate::inline_visualization::InlineVisualizationContext,
         >,
-        latex_rendering_feature_enabled: bool,
+        render_features: AgentMarkdownRenderFeatures,
     ) -> Self {
         let rendered_lines = (!markdown_source
             .contains(crate::inline_visualization::DIRECTIVE_PREFIX))
@@ -420,9 +437,53 @@ impl AgentMarkdownCell {
             markdown_source,
             cwd: cwd.to_path_buf(),
             inline_visualization_context,
-            latex_rendering_feature_enabled,
+            render_features,
             rendered_lines,
         }
+    }
+
+    fn rich_body_hyperlink_lines(
+        &self,
+        width: u16,
+        wrap_mermaid: impl FnOnce(
+            &str,
+            Option<usize>,
+            &dyn Fn(&str) -> Vec<HyperlinkLine>,
+        ) -> Vec<HyperlinkLine>,
+    ) -> Vec<HyperlinkLine> {
+        let Some(wrap_width) =
+            crate::width::usable_content_width_u16(width, /*reserved_cols*/ 2)
+        else {
+            return prefix_hyperlink_lines(
+                vec![HyperlinkLine::new(Line::default())],
+                "• ".dim(),
+                "  ".into(),
+            );
+        };
+
+        // Re-render markdown from source at the current width. Reserve 2 columns for the "• " /
+        // " " prefix prepended below.
+        let render_markdown = |source: &str| {
+            crate::latex_render::render_markdown_with_latex(
+                source,
+                Some(wrap_width),
+                self.render_features.latex,
+                |source| {
+                    crate::markdown::render_markdown_agent_with_links_cwd_and_visualizations(
+                        source,
+                        Some(wrap_width),
+                        Some(self.cwd.as_path()),
+                        self.inline_visualization_context.as_ref(),
+                    )
+                },
+            )
+        };
+        let lines = wrap_mermaid(&self.markdown_source, Some(wrap_width), &render_markdown);
+        normalize_whitespace_only_hyperlink_lines(prefix_hyperlink_lines(
+            lines,
+            "• ".dim(),
+            "  ".into(),
+        ))
     }
 }
 
@@ -448,36 +509,14 @@ impl HistoryCell for AgentMarkdownCell {
 
     fn display_hyperlink_lines(&self, width: u16) -> Vec<HyperlinkLine> {
         let render = || {
-            let Some(wrap_width) =
-                crate::width::usable_content_width_u16(width, /*reserved_cols*/ 2)
-            else {
-                return prefix_hyperlink_lines(
-                    vec![HyperlinkLine::new(Line::default())],
-                    "• ".dim(),
-                    "  ".into(),
-                );
-            };
-
-            // Re-render markdown from source at the current width. Reserve 2 columns for the "• " /
-            // " " prefix prepended below.
-            let lines = crate::latex_render::render_markdown_with_latex(
-                &self.markdown_source,
-                Some(wrap_width),
-                self.latex_rendering_feature_enabled,
-                |source| {
-                    crate::markdown::render_markdown_agent_with_links_cwd_and_visualizations(
-                        source,
-                        Some(wrap_width),
-                        Some(self.cwd.as_path()),
-                        self.inline_visualization_context.as_ref(),
-                    )
-                },
-            );
-            normalize_whitespace_only_hyperlink_lines(prefix_hyperlink_lines(
-                lines,
-                "• ".dim(),
-                "  ".into(),
-            ))
+            self.rich_body_hyperlink_lines(width, |markdown, wrap_width, render_markdown| {
+                crate::mermaid_render::render_markdown_with_mermaid(
+                    markdown,
+                    wrap_width,
+                    self.render_features.mermaid,
+                    render_markdown,
+                )
+            })
         };
 
         if let Some(rendered_lines) = &self.rendered_lines {

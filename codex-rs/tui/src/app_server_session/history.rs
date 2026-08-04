@@ -309,10 +309,7 @@ fn rendered_history_rows(
         items,
         visibility,
         Some(config.codex_home.as_path()),
-        config
-            .features
-            .get()
-            .enabled(codex_features::Feature::LatexRendering),
+        config.features.get(),
     )
     .into_iter()
     .fold(rendered_rows, |rows, cell| {
