@@ -435,6 +435,47 @@ async fn flush_answer_stream_requests_scrollback_reflow_for_inline_math() {
 }
 
 #[tokio::test]
+async fn flush_answer_stream_requests_scrollback_reflow_for_mermaid_diagram() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config
+        .features
+        .enable(Feature::MermaidRendering)
+        .expect("enable Mermaid rendering");
+    let cwd = chat.config.cwd.to_path_buf();
+
+    let mut controller = crate::streaming::controller::StreamController::new(
+        Some(80),
+        cwd.as_path(),
+        HistoryRenderMode::Rich,
+    );
+    assert!(controller.push("```mermaid\nflowchart LR\nA --> B\n```\n"));
+    assert!(
+        !controller.has_live_tail(),
+        "closed Mermaid fence should exercise finalized-source reflow",
+    );
+    chat.stream_controller = Some(controller);
+
+    while rx.try_recv().is_ok() {}
+
+    chat.flush_answer_stream_with_separator();
+
+    let mut reflow = None;
+    while let Ok(event) = rx.try_recv() {
+        if let AppEvent::ConsolidateAgentMessage {
+            scrollback_reflow, ..
+        } = event
+        {
+            reflow = Some(scrollback_reflow);
+        }
+    }
+
+    assert_eq!(
+        reflow,
+        Some(crate::app_event::ConsolidationScrollbackReflow::Required),
+    );
+}
+
+#[tokio::test]
 async fn flush_answer_stream_requests_scrollback_reflow_for_live_table_tail() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     let cwd = chat.config.cwd.to_path_buf();

@@ -146,6 +146,8 @@ mod markdown_render;
 mod markdown_stream;
 mod markdown_text_merge;
 mod mention_codec;
+mod mermaid_render;
+mod mermaid_runtime;
 mod model_catalog;
 mod model_migration;
 mod motion;
@@ -3176,6 +3178,7 @@ mod tests {
                 thread_id,
                 crate::thread_transcript::RawReasoningVisibility::Hidden,
                 /*codex_home*/ None,
+                config.features.get(),
             )
             .await?;
             assert!(cells.len() > 100);

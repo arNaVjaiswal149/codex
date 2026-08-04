@@ -1,8 +1,8 @@
 //! Tracks when Codex-owned transcript scrollback must be repaired after terminal resize.
 //!
 //! Terminal scrollback is not a retained widget tree: once Codex writes wrapped lines into the
-//! terminal, the terminal owns those rows. Width resize reflow treats the in-memory transcript cells
-//! as the source of truth, clears Codex-owned history, and re-emits the cells at the current width.
+//! terminal, the terminal owns those rows. Resize reflow treats the in-memory transcript cells as
+//! the source of truth, clears Codex-owned history, and re-emits the cells at the current geometry.
 //! Height-only growth also schedules a rebuild so rows exposed above the inline viewport are
 //! restored from the same source of truth.
 //!
@@ -26,6 +26,7 @@ pub(crate) const TRANSCRIPT_REFLOW_DEBOUNCE: Duration = Duration::from_millis(75
 #[derive(Debug, Default)]
 pub(crate) struct TranscriptReflowState {
     last_observed_width: Option<u16>,
+    last_observed_cell_pixels: Option<(u16, u16)>,
     last_reflow_width: Option<u16>,
     pending_reflow_width: Option<u16>,
     pending_until: Option<Instant>,
@@ -68,6 +69,12 @@ impl TranscriptReflowState {
             changed: previous_width.is_some_and(|previous| previous != width),
             initialized: previous_width.is_none(),
         }
+    }
+
+    pub(crate) fn note_cell_pixels(&mut self, cell_pixels: (u16, u16)) -> bool {
+        self.last_observed_cell_pixels
+            .replace(cell_pixels)
+            .is_some_and(|previous| previous != cell_pixels)
     }
 
     /// Return whether scrollback still needs to be rebuilt at `width`.
