@@ -3003,9 +3003,7 @@ mod tests {
             Some("Developer override.")
         );
 
-        let _ = config
-            .features
-            .enable(Feature::TerminalVisualizationInstructions);
+        let _ = config.features.enable(Feature::MermaidRendering);
         let treatment_start = thread_start_params_from_config(
             &config,
             ThreadParamsMode::Embedded,
@@ -3027,7 +3025,7 @@ mod tests {
         );
         let expected = format!(
             "Developer override.\n\n{}",
-            crate::terminal_visualization_instructions::TERMINAL_VISUALIZATION_INSTRUCTIONS
+            crate::terminal_visualization_instructions::MERMAID_VISUALIZATION_INSTRUCTIONS
         );
 
         assert_eq!(

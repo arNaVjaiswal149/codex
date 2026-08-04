@@ -41,13 +41,16 @@ impl ChatWidget {
                     parse_assistant_markdown(&source, self.config.cwd.as_path()).visible_markdown
                 })
             });
-            let contains_latex_math = crate::latex_render::latex_rendering_requested(
-                self.config.features.enabled(Feature::LatexRendering),
-            ) && source
-                .as_deref()
-                .is_some_and(crate::latex_render::contains_latex_math);
+            let contains_rich_content = source.as_deref().is_some_and(|source| {
+                (crate::latex_render::latex_rendering_requested(
+                    self.config.features.enabled(Feature::LatexRendering),
+                ) && crate::latex_render::contains_latex_math(source))
+                    || (crate::mermaid_render::mermaid_rendering_requested(
+                        self.config.features.enabled(Feature::MermaidRendering),
+                    ) && crate::mermaid_render::contains_mermaid_diagram(source))
+            });
             let scrollback_reflow =
-                if had_live_tail || completed_message_differs || contains_latex_math {
+                if had_live_tail || completed_message_differs || contains_rich_content {
                     crate::app_event::ConsolidationScrollbackReflow::Required
                 } else {
                     crate::app_event::ConsolidationScrollbackReflow::IfResizeReflowRan

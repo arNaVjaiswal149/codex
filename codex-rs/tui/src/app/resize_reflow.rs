@@ -339,6 +339,7 @@ impl App {
         &mut self,
         size: ratatui::layout::Size,
         last_known_screen_size: ratatui::layout::Size,
+        cell_pixels: (u16, u16),
         frame_requester: &tui::FrameRequester,
     ) -> bool {
         if size != last_known_screen_size || self.transcript_reflow.visible_history_rows().is_none()
@@ -346,14 +347,15 @@ impl App {
             self.update_visible_history_rows(size);
         }
         let width = self.transcript_reflow.note_width(size.width);
+        let cell_pixels_changed = self.transcript_reflow.note_cell_pixels(cell_pixels);
         let reflow_needed = self.transcript_reflow.reflow_needed_for_width(size.width);
         let height_changed = size.height != last_known_screen_size.height;
-        let should_rebuild_transcript = reflow_needed || height_changed;
-        if width.changed || width.initialized {
+        let should_rebuild_transcript = reflow_needed || height_changed || cell_pixels_changed;
+        if width.changed || width.initialized || cell_pixels_changed {
             self.chat_widget.on_terminal_resize(size.width);
         }
         if should_rebuild_transcript {
-            if reflow_needed && self.should_mark_reflow_as_stream_time() {
+            if (reflow_needed || cell_pixels_changed) && self.should_mark_reflow_as_stream_time() {
                 self.transcript_reflow.mark_resize_requested_during_stream();
             }
             let target_width = reflow_needed.then_some(size.width);
@@ -391,6 +393,7 @@ impl App {
         let should_rebuild_transcript = self.handle_draw_size_change(
             size,
             tui.terminal.last_known_screen_size,
+            crate::latex_render::terminal_cell_pixels(),
             &tui.frame_requester(),
         );
         if should_rebuild_transcript {

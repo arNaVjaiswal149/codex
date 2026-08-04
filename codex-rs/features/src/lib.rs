@@ -122,6 +122,8 @@ pub enum Feature {
     TerminalVisualizationInstructions,
     /// Render LaTeX math as terminal images in supported TUI environments.
     LatexRendering,
+    /// Render Mermaid diagrams as terminal images in supported TUI environments.
+    MermaidRendering,
     /// Stream structured progress while apply_patch input is being generated.
     ApplyPatchStreamingEvents,
     /// Allow exec tools to request additional permissions while staying sandboxed.
@@ -1336,6 +1338,16 @@ pub const FEATURES: &[FeatureSpec] = &[
         stage: Stage::Experimental {
             name: "LaTeX rendering",
             menu_description: "Render LaTeX math as images in supported terminals.",
+            announcement: "",
+        },
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::MermaidRendering,
+        key: "mermaid_rendering",
+        stage: Stage::Experimental {
+            name: "Mermaid rendering",
+            menu_description: "Render Mermaid diagrams as images in supported terminals.",
             announcement: "",
         },
         default_enabled: false,

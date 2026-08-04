@@ -10,7 +10,6 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use codex_features::Feature;
 use color_eyre::eyre::Result;
 
 use super::App;
@@ -60,7 +59,9 @@ impl App {
                     source,
                     &cwd,
                     inline_visualization_context,
-                    self.config.features.enabled(Feature::LatexRendering),
+                    history_cell::AgentMarkdownRenderFeatures::from_features(
+                        self.config.features.get(),
+                    ),
                 ));
             self.transcript_cells
                 .splice(start..end, std::iter::once(consolidated.clone()));
