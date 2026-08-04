@@ -28,7 +28,11 @@ mod render;
 
 use render::FormulaLayout;
 use render::RenderedFormula;
+pub(crate) use render::render_cached_display_png;
+#[cfg(test)]
+pub(crate) use render::render_cached_display_png_with_metrics;
 use render::render_formula;
+pub(crate) use render::terminal_cell_pixels;
 #[cfg(test)]
 use render::*;
 
@@ -188,24 +192,30 @@ pub(crate) fn flush_pending_uploads(writer: &mut impl Write) -> io::Result<()> {
 }
 
 fn latex_rendering_enabled(feature_enabled: bool) -> bool {
-    match env::var("CODEX_LATEX_RENDER").as_deref() {
-        Ok("0" | "false" | "off" | "no") => return false,
-        Ok("1" | "true" | "on" | "yes") => return true,
-        Ok(_) | Err(_) => {}
-    }
-
-    feature_enabled && kitty_graphics_supported()
+    kitty_graphics_enabled("CODEX_LATEX_RENDER", feature_enabled)
 }
 
 pub(crate) fn latex_rendering_requested(feature_enabled: bool) -> bool {
-    match env::var("CODEX_LATEX_RENDER").as_deref() {
+    rendering_requested("CODEX_LATEX_RENDER", feature_enabled)
+}
+
+pub(crate) fn rendering_requested(variable: &str, feature_enabled: bool) -> bool {
+    match env::var(variable).as_deref() {
         Ok("0" | "false" | "off" | "no") => false,
         Ok("1" | "true" | "on" | "yes") => true,
         Ok(_) | Err(_) => feature_enabled,
     }
 }
 
-fn kitty_graphics_supported() -> bool {
+pub(crate) fn kitty_graphics_enabled(variable: &str, feature_enabled: bool) -> bool {
+    match env::var(variable).as_deref() {
+        Ok("0" | "false" | "off" | "no") => false,
+        Ok("1" | "true" | "on" | "yes") => true,
+        Ok(_) | Err(_) => feature_enabled && kitty_graphics_supported(),
+    }
+}
+
+pub(crate) fn kitty_graphics_supported() -> bool {
     if env::var_os("TMUX").is_some()
         || env::var_os("TMUX_PANE").is_some()
         || env::var_os("ZELLIJ").is_some()

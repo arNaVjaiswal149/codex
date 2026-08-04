@@ -33,12 +33,17 @@ fn finalized_markdown_reuses_lines_primed_by_transcript_height() {
 }
 
 #[test]
-fn finalized_markdown_cache_misses_when_width_or_render_style_changes() {
+fn finalized_markdown_cache_misses_when_geometry_or_render_style_changes() {
     let cell = AgentMarkdownCell::new("finalized **markdown**".to_string(), Path::new("/tmp"));
     let width = 48;
     let expected = cell.display_lines(width);
 
     replace_cached_lines(&cell, |key| key.width = key.width.saturating_sub(1));
+    assert_eq!(cell.display_lines(width), expected);
+
+    replace_cached_lines(&cell, |key| {
+        key.terminal_cell_pixels.0 ^= 1;
+    });
     assert_eq!(cell.display_lines(width), expected);
 
     replace_cached_lines(&cell, |key| {
@@ -79,4 +84,45 @@ fn visualization_directives_are_not_cached() {
     cell.display_lines(/*width*/ 48);
 
     assert!(cell.rendered_lines.is_none());
+}
+
+#[test]
+fn finalized_mermaid_uses_fixture_placeholder_rows_with_assistant_gutters() {
+    let temp = tempfile::tempdir().expect("temporary image directory");
+    let image_path = temp.path().join("diagram.png");
+    image::RgbaImage::from_pixel(30, 25, image::Rgba([255, 255, 255, 255]))
+        .save(&image_path)
+        .expect("write PNG fixture");
+    let cell = AgentMarkdownCell::new(
+        "Before\n```mermaid\ngraph TD\n  A --> B\n```\nAfter\n".to_string(),
+        Path::new("/tmp"),
+    );
+
+    let lines = cell.rich_body_hyperlink_lines(
+        /*width*/ 12,
+        |markdown, wrap_width, render_markdown| {
+            crate::mermaid_render::render_markdown_with_mermaid_using(
+                markdown,
+                wrap_width,
+                render_markdown,
+                |_, available_columns| {
+                    crate::latex_render::render_cached_display_png_with_metrics(
+                        &image_path,
+                        "finalized-mermaid-fixture",
+                        available_columns,
+                        /*cell_width_px*/ 10,
+                        /*cell_height_px*/ 20,
+                        /*display_width_scale_halves*/ 2,
+                    )
+                },
+            )
+        },
+    );
+
+    let rendered = visible_lines(lines)
+        .iter()
+        .map(Line::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    insta::assert_snapshot!(format!("{rendered:?}"), @r###""• Before\n  \u{10eeee}\u{305}\u{10eeee}\n  After""###);
 }

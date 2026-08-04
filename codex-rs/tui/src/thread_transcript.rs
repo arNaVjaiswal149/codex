@@ -16,7 +16,6 @@ use crate::multi_agents::sub_agent_activity_summary;
 use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::UserInput;
-use codex_features::Feature;
 use codex_features::Features;
 use codex_protocol::ThreadId;
 use codex_protocol::items::UserMessageItem;
@@ -75,7 +74,7 @@ pub(crate) fn thread_to_transcript_cells(
         thread.turns.into_iter().flat_map(|turn| turn.items),
         raw_reasoning_visibility,
         codex_home,
-        features.enabled(Feature::LatexRendering),
+        features,
     );
     if cells.is_empty() {
         cells.push(Arc::new(PlainHistoryCell::new(vec![
@@ -91,7 +90,7 @@ pub(crate) fn thread_items_to_transcript_cells(
     items: impl IntoIterator<Item = ThreadItem>,
     raw_reasoning_visibility: RawReasoningVisibility,
     codex_home: Option<&std::path::Path>,
-    latex_rendering_enabled: bool,
+    features: &Features,
 ) -> TranscriptCells {
     let inline_visualization_context = codex_home.and_then(|codex_home| {
         thread_id.and_then(|thread_id| InlineVisualizationContext::new(codex_home, thread_id))
@@ -137,7 +136,7 @@ pub(crate) fn thread_items_to_transcript_cells(
                         parsed.visible_markdown,
                         cwd.as_path(),
                         inline_visualization_context.clone(),
-                        latex_rendering_enabled,
+                        crate::history_cell::AgentMarkdownRenderFeatures::from_features(features),
                     )));
                 }
             }

@@ -1,0 +1,15 @@
+---
+source: tui/src/mermaid_render_tests.rs
+assertion_line: 179
+expression: lines
+---
+[
+    HyperlinkLine {
+        line: Line::from(Span::from("\u{10eeee}\u{305}\u{10eeee}\u{10eeee}").fg(Color::Rgb(123, 45, 29))),
+        hyperlinks: [],
+    },
+    HyperlinkLine {
+        line: Line::from(Span::from("\u{10eeee}\u{30d}\u{10eeee}\u{10eeee}").fg(Color::Rgb(123, 45, 29))),
+        hyperlinks: [],
+    },
+]

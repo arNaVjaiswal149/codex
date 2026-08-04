@@ -1,4 +1,4 @@
-//! Single-width render cache shared by finalized source-backed markdown history cells.
+//! Single-geometry render cache shared by finalized source-backed markdown history cells.
 
 use crate::terminal_hyperlinks::HyperlinkLine;
 use std::sync::Mutex;
@@ -12,6 +12,7 @@ pub(super) struct MarkdownRenderCache {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct MarkdownRenderCacheKey {
     pub(super) width: u16,
+    pub(super) terminal_cell_pixels: (u16, u16),
     pub(super) syntax_theme_revision: u64,
     pub(super) terminal_fg: Option<(u8, u8, u8)>,
     pub(super) terminal_bg: Option<(u8, u8, u8)>,
@@ -19,10 +20,10 @@ pub(super) struct MarkdownRenderCacheKey {
 }
 
 impl MarkdownRenderCache {
-    /// Return lines cached for this width and terminal render state, rendering on a cache miss.
+    /// Return lines cached for this terminal geometry and render state, rendering on a cache miss.
     ///
-    /// Only the most recent entry is retained, so changing width, syntax theme, or terminal colors
-    /// replaces the cached render.
+    /// Only the most recent entry is retained, so changing width, cell pixels, syntax theme, or
+    /// terminal colors replaces the cached render.
     pub(super) fn render(
         &self,
         width: u16,
@@ -30,6 +31,7 @@ impl MarkdownRenderCache {
     ) -> Vec<HyperlinkLine> {
         let key = MarkdownRenderCacheKey {
             width,
+            terminal_cell_pixels: crate::latex_render::terminal_cell_pixels(),
             syntax_theme_revision: crate::render::highlight::syntax_theme_revision(),
             terminal_fg: crate::terminal_palette::default_fg(),
             terminal_bg: crate::terminal_palette::default_bg(),
