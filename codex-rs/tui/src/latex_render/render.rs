@@ -5,6 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
+use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -32,6 +33,7 @@ const INLINE_HEIGHT_NUMERATOR: u32 = 19;
 const INLINE_HEIGHT_DENOMINATOR: u32 = 20;
 const INLINE_SHORT_HEIGHT_NUMERATOR: u32 = 14;
 const INLINE_SHORT_ASPECT_LIMIT: u32 = 2;
+static CACHE_CLEANED: OnceLock<()> = OnceLock::new();
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum FormulaLayout {
@@ -473,10 +475,9 @@ pub(super) fn resolve_executable(name: &str) -> Option<PathBuf> {
 }
 
 fn latex_cache_dir() -> Result<PathBuf> {
-    Ok(codex_utils_home_dir::find_codex_home()?
-        .join("latex-cache")
-        .join(CACHE_VERSION)
-        .to_path_buf())
+    let root = codex_utils_home_dir::find_codex_home()?.join("latex-cache");
+    CACHE_CLEANED.get_or_init(|| super::expire_cached_pngs(&root));
+    Ok(root.join(CACHE_VERSION).to_path_buf())
 }
 
 pub(crate) fn terminal_cell_pixels() -> (u16, u16) {

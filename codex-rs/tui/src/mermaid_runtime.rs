@@ -7,6 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
+use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -28,11 +29,14 @@ const MAX_PNG_DIMENSION: u32 = 8_192;
 const MAX_PNG_PIXELS: u64 = 40_000_000;
 const MAX_STDERR_BYTES: usize = 8 * 1024;
 const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
+static CACHE_CLEANED: OnceLock<()> = OnceLock::new();
 
 pub(crate) fn render(diagram: &str, width: usize) -> Result<Vec<HyperlinkLine>> {
     let codex_home = find_codex_home()?;
     let mmdc = resolve_mmdc_in(&codex_home).context("mmdc executable not found")?;
-    let cache_dir = codex_home.join("mermaid-cache").join(CACHE_VERSION);
+    let cache_root = codex_home.join("mermaid-cache");
+    CACHE_CLEANED.get_or_init(|| crate::latex_render::expire_cached_pngs(&cache_root));
+    let cache_dir = cache_root.join(CACHE_VERSION);
     fs::create_dir_all(&cache_dir)
         .with_context(|| format!("create Mermaid cache {}", cache_dir.display()))?;
     let theme = mermaid_theme();
