@@ -8,17 +8,21 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
+use std::fs;
 use std::io;
 use std::io::Write;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::OnceLock;
+use std::time::Duration;
+use std::time::SystemTime;
 
 use anyhow::Result;
 use codex_terminal_detection::TerminalName;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
+use walkdir::WalkDir;
 
 use crate::terminal_hyperlinks::HyperlinkLine;
 use crate::terminal_palette::rgb_color;
@@ -105,6 +109,26 @@ struct UploadState {
 }
 
 static UPLOADS: OnceLock<Mutex<UploadState>> = OnceLock::new();
+
+const CACHE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+
+pub(crate) fn expire_cached_pngs(root: &Path) {
+    let cutoff = SystemTime::now() - CACHE_TTL;
+    for entry in WalkDir::new(root)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+    {
+        let path = entry.path();
+        if entry.file_type().is_file()
+            && path.extension().is_some_and(|extension| extension == "png")
+            && entry
+                .metadata()
+                .is_ok_and(|metadata| metadata.modified().is_ok_and(|modified| modified < cutoff))
+        {
+            let _ = fs::remove_file(path);
+        }
+    }
+}
 
 pub(crate) fn render_markdown_with_latex(
     markdown: &str,

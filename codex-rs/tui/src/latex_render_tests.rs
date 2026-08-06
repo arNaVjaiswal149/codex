@@ -653,6 +653,35 @@ fn cache_key_separates_display_and_inline_layouts() {
 }
 
 #[test]
+fn cache_expiry_removes_only_pngs_older_than_thirty_days() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let nested = temp.path().join("v1");
+    std::fs::create_dir(&nested)?;
+    let old_png = nested.join("old.png");
+    let recent_png = nested.join("recent.png");
+    let old_source = nested.join("old.tex");
+    for path in [&old_png, &recent_png, &old_source] {
+        std::fs::File::create(path)?;
+    }
+
+    let now = SystemTime::now();
+    let old = now - CACHE_TTL - Duration::from_secs(1);
+    for path in [&old_png, &old_source] {
+        std::fs::File::options()
+            .write(true)
+            .open(path)?
+            .set_times(std::fs::FileTimes::new().set_modified(old))?;
+    }
+
+    expire_cached_pngs(temp.path());
+
+    assert!(!old_png.exists());
+    assert!(recent_png.exists());
+    assert!(old_source.exists());
+    Ok(())
+}
+
+#[test]
 fn image_id_allocation_reuses_owner_and_probes_collisions_in_rgb_range() {
     let mut owners = HashMap::new();
     owners.insert(0x123456, "first".to_string());
